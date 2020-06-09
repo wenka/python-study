@@ -12,7 +12,7 @@ class Request:
 
 
 if __name__ == '__main__':
-    url = 'https://blog.csdn.net/'
+    url = 'https://blog.csdn.net/menglinjie'
     response = requests.get(url)
     # http响应状态码
     print(response.status_code)
