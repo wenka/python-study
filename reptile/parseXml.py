@@ -1,8 +1,11 @@
-from reptile import httpUtil
+from html import unescape
 from lxml import etree
-from html.parser import HTMLParser
+import execjs
+from reptile import httpUtil
 
 article_xpath = '//div[@class="article-list"]/div[@data-articleid]'
+
+path_xpath = '//script'
 
 
 class Article:
@@ -25,11 +28,44 @@ class Article:
             self.id, self.title, self.create_time, self.read_num, self.comment_num, self.url)
 
 
-if __name__ == '__main__':
-    url = 'https://blog.csdn.net/menglinjie'
-    response_html = httpUtil.Request(url=url).get_response()
+def get_page_info(blog_url):
+    response_html = httpUtil.Request(url=blog_url).get_response()
+    html = etree.HTML(response_html)
+    path_html = html.xpath(path_xpath)
+    if len(path_html) == 0:
+        print('无分页信息！')
+        return
+    for script in path_html:
+        if script.text is not None and 'listTotal' in script.text:
+            print(script.text)
+            execjs.compile(script.text)
+            get_total_script = '''
+            function getTotalCount(){
+                return listTotal;
+            }
+            function getCurrentPage(){
+                return currentPage;
+            }
+            '''
+            execjs_compile = execjs.compile(script.text + get_total_script)
+            list_total = execjs_compile.call('getTotalCount')
+            current_page = execjs_compile.call('getCurrentPage')
+            print('总文章数量：', list_total)
+            print('当前页码：', current_page)
+    pass
+
+
+def get_data(blog_url):
+    """
+     通过 CSDN 播客主页地址 获取该博主的博客内容
+    :param blog_url:  CSDN 播客主页地址
+    :return: 文章列表
+    """
+    response_html = httpUtil.Request(url=blog_url).get_response()
     html = etree.HTML(response_html)
     articles = html.xpath(article_xpath)
+    # Article 文章对象列表
+    article_list = []
     for article_element in articles:
         article = Article()
         # 文章Id
@@ -50,6 +86,14 @@ if __name__ == '__main__':
         content_response_html = httpUtil.Request(url=article.url).get_response()
         content_el = etree.HTML(content_response_html).xpath('//*[@id="article_content"]')[0]
         # 格式化为HTML内容
-        content = HTMLParser().unescape(etree.tostring(content_el, method='html').decode())
+        content = unescape(etree.tostring(content_el, method='html').decode())
         article.content = content
-        print(article)
+        article_list.append(article)
+
+    print('总共获取文章【%s】篇。' % (len(article_list)))
+    return article_list
+
+
+if __name__ == '__main__':
+    url = 'https://blog.csdn.net/menglinjie'
+    get_page_info(url)
