@@ -147,6 +147,3 @@ if __name__ == '__main__':
         articles.extend(article_list)
 
     print('总共获取文章【%s】篇。' % len(articles))
-
-    for a in articles:
-        print(a)
