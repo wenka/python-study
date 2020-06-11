@@ -4,7 +4,7 @@ import execjs
 from reptile import httpUtil
 
 article_xpath = '//div[@class="article-list"]/div[@data-articleid]'
-path_xpath = '//script'
+path_xpath = '//script/text()'
 
 blog_name = 'menglinjie'
 
@@ -76,9 +76,8 @@ def get_page_info(blog_url):
         print('无分页信息！')
         return
     for script in path_html:
-        if script.text is not None and 'listTotal' in script.text:
-            execjs.compile(script.text)
-            get_total_script = '''
+        if 'listTotal' in str(script):
+            custom_script = '''
             function getTotalCount(){
                 return listTotal;
             }
@@ -89,7 +88,7 @@ def get_page_info(blog_url):
                 return pageSize ;
             }
             '''
-            execjs_compile = execjs.compile(script.text + get_total_script)
+            execjs_compile = execjs.compile(str(script) + custom_script)
             list_total = execjs_compile.call('getTotalCount')
             page_size = execjs_compile.call('getPageSize')
             print('总文章数量：', list_total)
@@ -147,3 +146,7 @@ if __name__ == '__main__':
         articles.extend(article_list)
 
     print('总共获取文章【%s】篇。' % len(articles))
+    # print(execjs.eval('return 1222'))
+    # print(execjs.eval('1 + 1'))
+    # print(execjs.exec_('return 1222'))
+    # print(execjs.exec_('1 + 1'))
