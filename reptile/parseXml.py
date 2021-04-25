@@ -2,11 +2,13 @@ from html import unescape
 from lxml import etree
 import execjs
 from reptile import httpUtil
+import json
 
 article_xpath = '//div[@class="article-list"]/div[@data-articleid]'
 path_xpath = '//script/text()'
 
-blog_name = 'menglinjie'
+file_path = 'C:\\Users\\wenka\\Desktop\\csdn_reptile\csdn-1.txt'
+file = None
 
 
 class PageInfo:
@@ -52,8 +54,29 @@ class Article:
         return '<Article(id=%s,title=%s,create_time=%s,read_num=%s,comment_num=%s,url=%s)>' % (
             self.id, self.title, self.create_time, self.read_num, self.comment_num, self.url)
 
+    def __json__(self):
+        return json.dumps(self.__dict__, ensure_ascii=False)
 
-def get_page_url(current_page):
+
+def get_focus_ulrs(username):
+    """
+    获取关注列表
+    :param blog_url:
+    :return:
+    """
+    response_json = httpUtil.Request(
+        url='https://blog.csdn.net//phoenix/web/v1/follow/list?page=1&pageSize=40&blogUsername=' + username).get_response_json()
+    data_ = response_json['data']
+    try:
+        if data_['total'] == 0:
+            return []
+        else:
+            return data_['list']
+    except BaseException:
+        return []
+
+
+def get_page_url(current_page, blog_name):
     """
     获取分页Url
     :param current_page:
@@ -91,8 +114,8 @@ def get_page_info(blog_url):
             execjs_compile = execjs.compile(str(script) + custom_script)
             list_total = execjs_compile.call('getTotalCount')
             page_size = execjs_compile.call('getPageSize')
-            print('总文章数量：', list_total)
-            print('分页大小：', page_size)
+            # print('总文章数量：', list_total)
+            # print('分页大小：', page_size)
             return PageInfo(page_size=page_size, total=list_total)
 
 
@@ -108,45 +131,82 @@ def get_data(page_blog_url):
     # Article 文章对象列表
     article_list = []
     for article_element in articles:
-        article = Article()
-        # 文章Id
-        article.id = article_element.get('data-articleid')
-        # 文章内容路径
-        article.url = article_element.find('h4/a').get('href')
-        # 文章标题
-        article.title = article_element.find('h4/a/').tail.strip()
-        # 文章创建时间
-        article.create_time = article_element.find('div/p/span[@class="date"]').text.strip()
-        # 摘要
-        article.summary = article_element.find('p[@class="content"]/a').text.strip()
-        # 查阅数量
-        article.read_num = article_element.find('div/p/span[2]/img').tail.strip()
-        # 评论数量
-        article.comment_num = article_element.find('div/p/span[3]/img').tail.strip()
-        # 通过文章URL　获取文章内容
-        content_response_html = httpUtil.Request(url=article.url).get_response()
-        content_el = etree.HTML(content_response_html).xpath('//*[@id="article_content"]')[0]
-        # 格式化为HTML内容
-        content = unescape(etree.tostring(content_el, method='html').decode())
-        article.content = content
-        article_list.append(article)
+        try:
+            article = Article()
+            # 文章Id
+            article.id = article_element.get('data-articleid')
+            # 文章内容路径
+            article.url = article_element.find('h4/a').get('href')
+            # 文章标题
+            article.title = article_element.find('h4/a/').tail.strip()
+            # 文章创建时间
+            article.create_time = article_element.find('div/p/span[@class="date"]').text.strip()
+            # 摘要
+            # article.summary = article_element.find('p[@class="content"]').text.strip()
+            # 查阅数量
+            article.read_num = article_element.find('div/p/span[2]/img').tail.strip()
+            # 评论数量
+            find = article_element.find('div/p/span[3]/img')
+            if None != find:
+                article.comment_num = article_element.find('div/p/span[3]/img').tail.strip()
+            # 通过文章URL　获取文章内容
+            # content_response_html = httpUtil.Request(url=article.url).get_response()
+            # content_el = etree.HTML(content_response_html).xpath('//*[@id="article_content"]')[0]
+            # 格式化为HTML内容
+            # content = unescape(etree.tostring(content_el, method='html').decode())
+            # article.content = content
+            file.write(article.__json__())
+            file.write('\n')
+            article_list.append(article)
+        except UnicodeEncodeError:
+            pass
+        except BaseException:
+            pass
 
-    print('%s 总共获取文章【%s】篇。' % (page_blog_url, len(article_list)))
+    # print('%s 总共获取文章【%s】篇。' % (page_blog_url, len(article_list)))
+
     return article_list
 
 
-if __name__ == '__main__':
-    url = 'https://blog.csdn.net/' + blog_name
-    page_info = get_page_info(url)
+def read_article(user_url, username):
+    page_info = get_page_info(user_url)
     articles = []
+    if page_info is None:
+        return
     while page_info.has_next():
         page = page_info.next_page()
-        page_url = get_page_url(page)
+        page_url = get_page_url(page, username)
         article_list = get_data(page_blog_url=page_url)
         articles.extend(article_list)
+    print('总共获取 [%s] 文章【%s】篇。' % (username, len(articles)))
 
-    print('总共获取文章【%s】篇。' % len(articles))
-    # print(execjs.eval('return 1222'))
-    # print(execjs.eval('1 + 1'))
-    # print(execjs.exec_('return 1222'))
-    # print(execjs.exec_('1 + 1'))
+
+if __name__ == '__main__':
+    name = 'lidew521'
+    url = 'https://blog.csdn.net/' + name
+    url_obj_arr = []
+    url_obj_arr.append({
+        'blogUrl': url,
+        'username': name
+    })
+
+    file = open(file_path, mode='a+', encoding='utf-8')
+
+    read_peoples = 0
+    history = []
+    while len(url_obj_arr) != 0:
+        url_obj = url_obj_arr.pop(0)
+        if history.count(url_obj['username']) == 0:
+            history.append(url_obj['username'])
+            for u in get_focus_ulrs(url_obj['username']):
+                url_obj_arr.append(u)
+            try:
+                read_article(url_obj['blogUrl'], url_obj['username'])
+            except BaseException:
+                pass
+            read_peoples = read_peoples + 1
+            if read_peoples % 100 == 0:
+                file.flush()
+            # file.close()
+            # path = 'C:\\Users\\wenka\\Desktop\\csdn_reptile\csdn-%s.txt' % (read_peoples)
+            # file = open(path, mode='a+')
